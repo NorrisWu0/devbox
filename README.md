@@ -33,4 +33,13 @@ The local runner installs SSH at startup without changing the base image. It acc
 
 Press Ctrl+C in the first terminal to stop and remove the container. Files inside it are discarded; this is not a persistent workspace yet.
 
-Image publishing and Kubernetes deployment are separate stages.
+## Publishing
+
+The `Publish images` GitHub Action runs on pushes to `master` or manually. It publishes Linux amd64 images using the repository's `GITHUB_TOKEN`:
+
+- `ghcr.io/norriswu0/devbox-debian`
+- `ghcr.io/norriswu0/devbox-arch`
+
+Docker Metadata Action generates OCI labels and three image tags per commit: `latest`, the short SHA (7 characters), and the full SHA, with no prefix. After the first publish, set each package's visibility to **Public** in its GitHub package settings; GHCR creates new packages as private by default.
+
+Kubernetes deployment remains a separate stage.
