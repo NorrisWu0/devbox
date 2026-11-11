@@ -2,7 +2,7 @@
 
 Each base image has its own directory under `images/`.
 
-- [`images/debian/Dockerfile`](images/debian/Dockerfile): Debian 13 (`trixie-slim`) with Git, mise, and CA certificates. No SSH configuration yet.
+- [`images/debian/Dockerfile`](images/debian/Dockerfile): Debian 13 (`trixie-slim`) with Git, mise, CA certificates, and the OpenSSH server.
 - [`images/arch/Dockerfile`](images/arch/Dockerfile): Arch Linux with the same tools.
 
 Build locally with Docker:
@@ -29,7 +29,9 @@ Wait for `Server listening`, then connect from a second terminal:
 make ssh
 ```
 
-The local runner installs SSH at startup without changing the base image. It accepts public-key login as `devbox` on `127.0.0.1:2222` only. The host keeps the generated test key in `.local/ssh/`; only its public key is mounted into the devbox.
+The local runner creates user `devbox` and generates fresh SSH host keys at startup; no packages are downloaded. Host keys are not included in either image. It accepts public-key login on `127.0.0.1:2222` only. The host keeps the generated test key in `.local/ssh/`; only its public key is mounted into the devbox.
+
+Optional overrides: `CONTAINER_NAME`, `SSH_PORT`, and `SSH_DIR`. Use the same `SSH_PORT` and `SSH_DIR` with `make ssh` when overriding them.
 
 Press Ctrl+C in the first terminal to stop and remove the container. Files inside it are discarded; this is not a persistent workspace yet.
 
