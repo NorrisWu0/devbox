@@ -16,6 +16,8 @@
       ansible.builtin.import_tasks: tasks/mise.yml
     - name: Configure Tailscale
       ansible.builtin.import_tasks: tasks/tailscale.yml
+    - name: Configure personal tools
+      ansible.builtin.import_tasks: tasks/dotfile.yml
   handlers:
     - name: Validate SSH configuration
       ansible.builtin.command: /usr/sbin/sshd -t

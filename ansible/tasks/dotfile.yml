@@ -1,0 +1,95 @@
+---
+- name: Install personal tool system dependencies
+  ansible.builtin.apt:
+    name: [curl, libatomic1, tmux]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+- name: Bootstrap personal tools
+  become_user: norris
+  environment:
+    HOME: /home/norris
+  vars:
+    dotfile_profiles: >-
+      {{ (dotfile_profile_status.stdout | from_json).files
+         | selectattr('origin.config', 'equalto', '/home/norris/git/norriswu0/dotfile/mise.toml') | list }}
+  block:
+    - name: Prepare personal repository directory
+      ansible.builtin.file:
+        path: /home/norris/git/norriswu0
+        state: directory
+        mode: '0755'
+    - name: Check out public dotfile repository
+      ansible.builtin.git:
+        repo: https://github.com/NorrisWu0/dotfile.git
+        dest: /home/norris/git/norriswu0/dotfile
+        version: main
+        force: false
+    - name: Inspect legacy global mise configuration
+      ansible.builtin.stat:
+        path: /home/norris/.config/mise/config.toml
+        follow: false
+      register: dotfile_legacy_mise_config
+    - name: Remove owned legacy global mise configuration link
+      ansible.builtin.file:
+        path: /home/norris/.config/mise/config.toml
+        state: absent
+      when:
+        - dotfile_legacy_mise_config.stat.islnk | default(false)
+        - dotfile_legacy_mise_config.stat.lnk_source | default('') == '/home/norris/git/norriswu0/dotfile/mise.toml'
+    - name: Inspect global mise dotfile directory link
+      ansible.builtin.stat:
+        path: /home/norris/.config/mise/conf.d/dotfile
+        follow: false
+      register: dotfile_mise_config
+    - name: Link global mise dotfile directory with existing-file backup
+      ansible.builtin.shell: |
+        source /home/norris/git/norriswu0/dotfile/lib/setup.sh
+        setup_link /home/norris/git/norriswu0/dotfile "$HOME/.config/mise/conf.d/dotfile" false
+      args:
+        executable: /bin/bash
+      when: dotfile_mise_config.stat.lnk_source | default('') != '/home/norris/git/norriswu0/dotfile'
+    - name: Inspect missing personal tool versions
+      ansible.builtin.command:
+        argv: [mise, ls, --current, --missing, --json]
+        chdir: /home/norris
+      register: dotfile_missing_tools
+      changed_when: false
+      when: not ansible_check_mode
+    - name: Install pinned personal tools
+      ansible.builtin.command:
+        argv: [mise, install, --yes]
+        chdir: /home/norris
+      when:
+        - not ansible_check_mode
+        - dotfile_missing_tools.stdout | from_json | length > 0
+    - name: Inspect declared personal profiles
+      ansible.builtin.command:
+        argv: [mise, -C, /home/norris/git/norriswu0/dotfile, dot, status, --json]
+      register: dotfile_profile_status
+      changed_when: false
+      when: not ansible_check_mode
+    - name: Refuse conflicting or missing-source personal profiles
+      ansible.builtin.assert:
+        that:
+          - >-
+            dotfile_profiles
+            | rejectattr('state', 'in', ['applied', 'missing']) | list | length == 0
+        fail_msg: Personal profiles have conflicts or missing sources; resolve them manually before rerunning (no forced overwrite).
+      when: not ansible_check_mode
+    - name: Apply missing personal profiles
+      ansible.builtin.command:
+        argv: >-
+          {{ ['mise', '-C', '/home/norris/git/norriswu0/dotfile', 'dot', 'apply', '--yes']
+             + (dotfile_profiles | map(attribute='target') | map('regex_replace', '^~/', '/home/norris/') | list) }}
+      when:
+        - not ansible_check_mode
+        - >-
+          dotfile_profiles
+          | selectattr('state', 'equalto', 'missing') | list | length > 0
+    - name: Synchronize Herdr plugins
+      ansible.builtin.command:
+        argv: [mise, -C, /home/norris/git/norriswu0/dotfile, run, herdr-plugins]
+      register: dotfile_herdr_plugins
+      changed_when: "'Installed Herdr plugin:' in dotfile_herdr_plugins.stdout"
+      when: not ansible_check_mode

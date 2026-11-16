@@ -37,7 +37,7 @@ The guest agent supplies the DHCP address in the generated inventory. Before run
 
 ### Configure
 
-One playbook imports `system`, `ssh`, `mise`, and `tailscale` task files. Linux and Tailscale hostnames follow the generated inventory name; Ansible also configures cloud-init to retain existing SSH host keys when bootstrap metadata changes. For first enrollment, generate a single-use, non-ephemeral Tailscale auth key with the intended tag and access policy:
+One playbook imports `system`, `ssh`, `mise`, `tailscale`, and `dotfile` task files. Linux and Tailscale hostnames follow the generated inventory name; Ansible also configures cloud-init to retain existing SSH host keys when bootstrap metadata changes. For first enrollment, generate a single-use, non-ephemeral Tailscale auth key with the intended tag and access policy:
 
 ```sh
 read -rsp 'Tailscale auth key: ' TAILSCALE_AUTH_KEY; printf '\n'
@@ -47,6 +47,18 @@ unset TAILSCALE_AUTH_KEY
 ```
 
 Already authenticated VMs do not need another enrollment key. Secret tasks are redacted and temporary credentials removed on failure. Re-run this playbook for ongoing configuration; cloud-init is bootstrap, so editing its user/key settings does not reconfigure an existing instance automatically. Re-export the inventory after address changes.
+
+### Personal tools
+
+Publish the dotfile changes to `NorrisWu0/dotfile`'s `main` branch before applying the playbook; the VM cannot fetch a local-only commit.
+
+Ansible clones the public repository over HTTPS to `/home/norris/git/norriswu0/dotfile` as `norris`. It uses the dotfile setup helper to link the repository directory at `~/.config/mise/conf.d/dotfile`, backing up any conflicting entry there, then installs missing pinned tools under the user's home. The directory link preserves relative profile source paths when mise loads the configuration globally. Ansible removes the legacy `~/.config/mise/config.toml` link only when it points to this checkout's `mise.toml`; unrelated user configuration is left intact. Tools include `gh`; cloning the public repository needs no GitHub credentials.
+
+After installing tools, Ansible inspects `mise dot status --json` and applies missing declared symlinks for agent instructions/skills, Herdr, Neovim, and tmux configuration. Tmux itself is installed through apt. Other desktop modules are not applied. Conflicting profile destinations or missing sources fail without forcing overwrites; resolve them manually before rerunning. It then runs `mise -C /home/norris/git/norriswu0/dotfile run herdr-plugins` as `norris` to install missing Herdr plugins, without starting or controlling sessions.
+
+Reruns update the checkout without discarding local modifications, skip already-installed tools and applied profiles, and report plugin changes only when plugins are installed. Check mode skips tool inspection/installation, profile inspection/application, and plugin synchronization. The published `main` branch must include the profile declarations and `herdr-plugins` task; local-only commits are not available to the VM.
+
+Only version-controlled configuration is linked: live sessions, runtime data, and credentials are not copied or provisioned. For authenticated GitHub work, run `mise exec -- gh auth login` inside the devbox; Ansible does not copy or provision GitHub tokens. Configure any agent/provider credentials separately on the VM.
 
 ### Data safety
 
