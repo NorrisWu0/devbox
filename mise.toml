@@ -1,0 +1,6 @@
+[tools]
+infisical = { version = "0.45.4", asset_pattern = "cli_{{ version }}_{{ os(macos='darwin') }}_{{ arch(x64='amd64') }}.tar.gz" }
+opentofu = "1.13.9"
+"pipx:ansible-core" = "2.22.0"
+python = "3.13.18"
+uv = "0.13.8"

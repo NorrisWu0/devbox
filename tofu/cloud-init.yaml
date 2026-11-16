@@ -1,0 +1,136 @@
+#cloud-config
+hostname: devbox-vm
+preserve_hostname: false
+manage_etc_hosts: true
+locale: C.UTF-8
+disable_root: true
+ssh_pwauth: false
+
+users:
+  - name: norris
+    uid: 1000
+    groups: [sudo]
+    shell: /bin/bash
+    homedir: /home/norris
+    lock_passwd: true
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA2+FrxxTba15tahl43VIhM+i7lOKQD+7UVY328cNA2W
+
+package_update: true
+packages:
+  - python3
+  - sudo
+  - openssh-server
+  - qemu-guest-agent
+
+# Debian runs bootcmd before mounts, users_groups, and ssh. Mount the data
+# disk before user creation so the entire home (including dotfiles) persists.
+# Debian cloud images already provide util-linux, e2fsprogs, and udev.
+bootcmd:
+  - - /bin/sh
+    - -eu
+    - -c
+    - |
+      rm -f /run/devbox-home-ready
+      device=/dev/disk/by-id/virtio-devbox-workspace
+
+      # Fail closed even if cloud-init continues other modules after an error.
+      # The readiness condition also protects first boot, before fstab exists.
+      install -d -m 0755 /etc/systemd/system/ssh.service.d
+      cat > /etc/systemd/system/ssh.service.d/10-persistent-home.conf <<'EOF'
+      [Unit]
+      After=cloud-init-network.service
+      ConditionPathExists=/run/devbox-home-ready
+      RequiresMountsFor=/home
+      ConditionPathIsMountPoint=/home
+      EOF
+      systemctl daemon-reload
+      if systemctl cat ssh.socket >/dev/null 2>&1; then
+        systemctl stop ssh.socket
+      fi
+      if systemctl cat ssh.service >/dev/null 2>&1; then
+        systemctl stop ssh.service
+      fi
+
+      udevadm settle --timeout=30
+      if [ ! -b "$device" ]; then
+        echo "Persistent home disk is unavailable: $device" >&2
+        exit 1
+      fi
+      # Partitioned disks and non-disk devices are never initialized or mounted.
+      if [ "$(lsblk --noheadings --raw --output TYPE "$device")" != disk ]; then
+        echo "Persistent home requires an unpartitioned whole disk" >&2
+        exit 1
+      fi
+      mounted_at=$(findmnt --noheadings --raw --source "$device" --output TARGET || :)
+      if [ -n "$mounted_at" ] && [ "$mounted_at" != /home ]; then
+        echo "Persistent home disk is already mounted elsewhere" >&2
+        exit 1
+      fi
+      if mountpoint --quiet /home && [ "$mounted_at" != /home ]; then
+        echo "/home is mounted from an unexpected device" >&2
+        exit 1
+      fi
+
+      # Only a signature-free, newly provisioned disk may be formatted. Never
+      # overwrite a filesystem, partition table, RAID member, or encryption header.
+      signatures=$(wipefs --no-act --noheadings --output TYPE "$device")
+      if [ -z "$signatures" ]; then
+        if [ -n "$mounted_at" ]; then
+          echo "Refusing to initialize a mounted disk" >&2
+          exit 1
+        fi
+        mkfs.ext4 -L devbox-home "$device"
+      elif [ "$signatures" != ext4 ]; then
+        echo "Unexpected persistent home disk signature: $signatures" >&2
+        exit 1
+      fi
+      if [ "$(blkid -p -s TYPE -o value "$device")" != ext4 ] ||
+         [ "$(blkid -p -s LABEL -o value "$device")" != devbox-home ]; then
+        echo "Persistent home disk must be ext4 with label devbox-home" >&2
+        exit 1
+      fi
+
+      install -d /home
+      if ! mountpoint --quiet /home; then
+        mount -t ext4 "$device" /home
+      fi
+      chmod 0755 /home
+
+      # A failed bootcmd does not stop later cloud-init modules. Persist this
+      # required mount only after validation, instead of using an unconditional
+      # mounts entry that could bypass the filesystem/label checks on first boot.
+      # No nofail: subsequent boots must not proceed without the data disk.
+      mount_entry="$device /home ext4 defaults 0 2"
+      if ! grep -Fqx "$mount_entry" /etc/fstab; then
+        if findmnt --fstab --mountpoint /home >/dev/null 2>&1; then
+          echo "/etc/fstab already contains an unexpected /home mount" >&2
+          exit 1
+        fi
+        printf '\n%s\n' "$mount_entry" >> /etc/fstab
+      fi
+      touch /run/devbox-home-ready
+      # Never recursively change existing home ownership: UID 1000 is stable
+      # across OS replacements. Cloud-init provisions only the login key/user.
+      # Queue SSH after the network stage creates the user and login keys.
+      systemctl --no-block start ssh.service
+
+# The guarded bootcmd owns the /home fstab entry. Do not add an unconditional
+# cloud-init mounts/fs_setup entry: later modules run even if validation fails.
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/00-devbox.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+
+runcmd:
+  - [systemctl, daemon-reload]
+  # Debian's static guest-agent unit is activated by its virtio-port udev rule
+  # on subsequent boots; start it explicitly after package installation now.
+  - [systemctl, start, qemu-guest-agent.service]
+  - [systemctl, enable, --now, ssh.service]

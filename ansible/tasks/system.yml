@@ -1,0 +1,19 @@
+---
+- name: Install base tools
+  ansible.builtin.apt:
+    name: [ca-certificates, git, openssh-server]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+- name: Set UTF-8 locale
+  ansible.builtin.lineinfile:
+    path: /etc/default/locale
+    regexp: '^LANG='
+    line: LANG=C.UTF-8
+    create: true
+    mode: '0644'
+- name: Prepare repository key directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'

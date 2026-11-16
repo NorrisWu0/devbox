@@ -1,0 +1,32 @@
+---
+- name: Install mise repository signing key
+  ansible.builtin.get_url:
+    url: https://mise.jdx.dev/gpg-key.pub
+    dest: /etc/apt/keyrings/mise.asc
+    mode: '0644'
+- name: Configure mise repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/mise.sources
+    content: |
+      Types: deb
+      URIs: https://mise.jdx.dev/deb
+      Suites: stable
+      Components: main
+      Signed-By: /etc/apt/keyrings/mise.asc
+    mode: '0644'
+- name: Install mise
+  ansible.builtin.apt:
+    name: mise
+    update_cache: true
+    state: present
+- name: Enable mise for interactive Bash sessions
+  ansible.builtin.blockinfile:
+    path: /etc/bash.bashrc
+    marker: '# {mark} ANSIBLE DEVBOX MISE'
+    block: |
+      if [ -n "${BASH_VERSION:-}" ]; then
+        case $- in
+          *i*) eval "$(mise activate bash)" ;;
+        esac
+      fi
+    mode: '0644'

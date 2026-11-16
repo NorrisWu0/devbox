@@ -1,1 +1,9 @@
 .local/
+.ansible/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+crash.log

@@ -1,4 +1,4 @@
-.PHONY: build build-arch run ssh
+.PHONY: build build-arch run ssh vm-plan vm-apply
 
 SSH_DIR := $(CURDIR)/.local/ssh
 CONTAINER_NAME ?= devbox-local
@@ -36,3 +36,11 @@ ssh:
 		-o UserKnownHostsFile="$(SSH_DIR)/known_hosts" \
 		-o StrictHostKeyChecking=accept-new \
 		-p "$(SSH_PORT)" devbox@127.0.0.1
+
+INFISICAL_RUN := mise exec -- infisical run --env prod --path /devbox --silent --
+
+vm-plan:
+	@$(INFISICAL_RUN) sh scripts/proxmox-tofu.sh plan -out=devbox.tfplan
+
+vm-apply:
+	@$(INFISICAL_RUN) sh scripts/proxmox-tofu.sh apply devbox.tfplan

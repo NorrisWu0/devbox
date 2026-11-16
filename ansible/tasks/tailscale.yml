@@ -1,0 +1,66 @@
+---
+- name: Install Tailscale signing key
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/stable/debian/{{ ansible_facts.distribution_release }}.noarmor.gpg"
+    dest: /etc/apt/keyrings/tailscale.gpg
+    mode: '0644'
+- name: Configure Tailscale repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/tailscale.sources
+    content: |
+      Types: deb
+      URIs: https://pkgs.tailscale.com/stable/debian
+      Suites: {{ ansible_facts.distribution_release }}
+      Components: main
+      Signed-By: /etc/apt/keyrings/tailscale.gpg
+    mode: '0644'
+- name: Install Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    update_cache: true
+    state: present
+- name: Enable Tailscale
+  ansible.builtin.service:
+    name: tailscaled
+    state: started
+    enabled: true
+- name: Inspect Tailscale enrollment
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_status
+  changed_when: false
+  failed_when: tailscale_status.rc not in [0, 1]
+  when: not ansible_check_mode
+- name: Enroll an unauthenticated device
+  when:
+    - not ansible_check_mode
+    - (tailscale_status.stdout | from_json).BackendState == 'NeedsLogin'
+  block:
+    - name: Require an enrollment key
+      ansible.builtin.assert:
+        that: lookup('ansible.builtin.env', 'TAILSCALE_AUTH_KEY') | length > 0
+        fail_msg: Supply TAILSCALE_AUTH_KEY for first enrollment.
+      no_log: true
+    - name: Create temporary enrollment file
+      ansible.builtin.tempfile:
+        state: file
+        path: /run
+        prefix: devbox-tailscale-
+      register: tailscale_key_file
+    - name: Write enrollment credential
+      ansible.builtin.copy:
+        content: "{{ lookup('ansible.builtin.env', 'TAILSCALE_AUTH_KEY') }}"
+        dest: "{{ tailscale_key_file.path }}"
+        mode: '0600'
+      no_log: true
+      diff: false
+    - name: Join the tailnet
+      ansible.builtin.command:
+        argv: [tailscale, up, "--auth-key=file:{{ tailscale_key_file.path }}", '--timeout=60s']
+      changed_when: true
+      no_log: true
+  always:
+    - name: Remove enrollment credential
+      ansible.builtin.file:
+        path: "{{ tailscale_key_file.path }}"
+        state: absent
+      when: tailscale_key_file is defined and tailscale_key_file.path is defined
