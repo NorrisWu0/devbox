@@ -21,12 +21,12 @@ resource "proxmox_virtual_environment_file" "cloud_init" {
   overwrite    = false
   source_raw {
     data      = local.cloud_init
-    file_name = "devbox-vm-${substr(sha256(local.cloud_init), 0, 12)}.cloud-config.yaml"
+    file_name = "devbox-${substr(sha256(local.cloud_init), 0, 12)}.cloud-config.yaml"
   }
 }
 
 resource "proxmox_virtual_environment_vm" "devbox" {
-  name        = "devbox-vm"
+  name        = "devbox"
   node_name   = "proxmox-02"
   description = "Declarative Debian devbox; workspace data lives on the protected home disk."
   tags        = ["devbox", "opentofu"]

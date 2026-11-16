@@ -22,7 +22,7 @@ output "ansible_inventory" {
       children = {
         devboxes = {
           hosts = {
-            "devbox-vm" = {
+            (proxmox_virtual_environment_vm.devbox.name) = {
               ansible_host = one(local.lan_ipv4)
               ansible_user = "norris"
             }

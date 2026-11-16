@@ -1,5 +1,5 @@
 #cloud-config
-hostname: devbox-vm
+hostname: devbox
 preserve_hostname: false
 manage_etc_hosts: true
 locale: C.UTF-8

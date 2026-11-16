@@ -30,6 +30,14 @@
   changed_when: false
   failed_when: tailscale_status.rc not in [0, 1]
   when: not ansible_check_mode
+- name: Update the enrolled device hostname
+  ansible.builtin.command:
+    argv: [tailscale, set, "--hostname={{ inventory_hostname }}"]
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - (tailscale_status.stdout | from_json).BackendState == 'Running'
+    - (tailscale_status.stdout | from_json).Self.DNSName.split('.')[0] != inventory_hostname
 - name: Enroll an unauthenticated device
   when:
     - not ansible_check_mode
@@ -55,7 +63,7 @@
       diff: false
     - name: Join the tailnet
       ansible.builtin.command:
-        argv: [tailscale, up, "--auth-key=file:{{ tailscale_key_file.path }}", '--timeout=60s']
+        argv: [tailscale, up, "--hostname={{ inventory_hostname }}", "--auth-key=file:{{ tailscale_key_file.path }}", '--timeout=60s']
       changed_when: true
       no_log: true
   always:

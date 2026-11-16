@@ -37,7 +37,7 @@ The guest agent supplies the DHCP address in the generated inventory. Before run
 
 ### Configure
 
-One playbook imports `system`, `ssh`, `mise`, and `tailscale` task files. For first enrollment, generate a single-use, non-ephemeral Tailscale auth key with the intended tag and access policy:
+One playbook imports `system`, `ssh`, `mise`, and `tailscale` task files. Linux and Tailscale hostnames follow the generated inventory name; Ansible also configures cloud-init to retain existing SSH host keys when bootstrap metadata changes. For first enrollment, generate a single-use, non-ephemeral Tailscale auth key with the intended tag and access policy:
 
 ```sh
 read -rsp 'Tailscale auth key: ' TAILSCALE_AUTH_KEY; printf '\n'

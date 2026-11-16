@@ -1,4 +1,10 @@
 ---
+- name: Preserve SSH identity across cloud-init metadata updates
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud.cfg.d/99-devbox-ssh-identity.cfg
+    content: |
+      ssh_deletekeys: false
+    mode: '0644'
 - name: Configure key-only non-root SSH
   ansible.builtin.copy:
     dest: /etc/ssh/sshd_config.d/00-devbox.conf

@@ -24,10 +24,10 @@ Check that your key's fingerprint is listed. To use this agent in new terminals,
 Before accepting the first SSH host-key prompt, open the VM's trusted Proxmox console and run `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`. Compare its fingerprint with the SSH prompt; stop if it differs.
 
 ```sh
-ssh norris@devbox-vm
+ssh norris@devbox
 ```
 
-Approve Bitwarden's signing request if prompted. If `devbox-vm` does not resolve, use the VM's full Tailscale MagicDNS name instead. Investigate any unexpected changed-host-key warning rather than removing the saved key blindly.
+Approve Bitwarden's signing request if prompted. If `devbox` does not resolve, use the VM's full Tailscale MagicDNS name instead. Investigate any unexpected changed-host-key warning rather than removing the saved key blindly.
 
 ## 3. Work and disconnect
 
