@@ -13,6 +13,9 @@
     dotfile_profiles: >-
       {{ (dotfile_profile_status.stdout | from_json).files
          | selectattr('origin.config', 'equalto', '/home/norris/git/norriswu0/dotfile/mise.toml') | list }}
+    dotfile_profile_edits: >-
+      {{ (dotfile_profile_status.stdout | from_json).edits
+         | selectattr('origin.config', 'equalto', '/home/norris/git/norriswu0/dotfile/mise.toml') | list }}
   block:
     - name: Prepare personal repository directory
       ansible.builtin.file:
@@ -77,16 +80,40 @@
             | rejectattr('state', 'in', ['applied', 'missing']) | list | length == 0
         fail_msg: Personal profiles have conflicts or missing sources; resolve them manually before rerunning (no forced overwrite).
       when: not ansible_check_mode
+    - name: Refuse missing-source or unsupported personal profile edits
+      ansible.builtin.assert:
+        that:
+          - >-
+            dotfile_profile_edits
+            | rejectattr('state', 'in', ['applied', 'missing', 'differs']) | list | length == 0
+        fail_msg: Personal profile edits have missing sources or unsupported states; resolve them manually before rerunning.
+      when: not ansible_check_mode
     - name: Apply missing personal profiles
       ansible.builtin.command:
         argv: >-
           {{ ['mise', '-C', '/home/norris/git/norriswu0/dotfile', 'dot', 'apply', '--yes']
-             + (dotfile_profiles | map(attribute='target') | map('regex_replace', '^~/', '/home/norris/') | list) }}
+             + (dotfile_profiles | selectattr('state', 'equalto', 'missing')
+                | map(attribute='target') | map('regex_replace', '^~/', '/home/norris/') | list) }}
       when:
         - not ansible_check_mode
         - >-
           dotfile_profiles
           | selectattr('state', 'equalto', 'missing') | list | length > 0
+    - name: Apply pending personal profile edits
+      ansible.builtin.command:
+        # A bare path would also select unrelated edits of the same file.
+        argv:
+          - mise
+          - -C
+          - /home/norris/git/norriswu0/dotfile
+          - dot
+          - apply
+          - --yes
+          - "{{ (item.path | regex_replace('^~/', '/home/norris/')) ~ '/' ~ (item.edit | regex_replace('^[^:]+:', '')) }}"
+      loop: "{{ [] if ansible_check_mode else (dotfile_profile_edits | rejectattr('state', 'equalto', 'applied') | list) }}"
+      loop_control:
+        label: "{{ item.path }}/{{ item.edit }}"
+      when: not ansible_check_mode
     - name: Synchronize Herdr plugins
       ansible.builtin.command:
         argv: [mise, -C, /home/norris/git/norriswu0/dotfile, run, herdr-plugins]
