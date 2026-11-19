@@ -28,6 +28,23 @@
         dest: /home/norris/git/norriswu0/dotfile
         version: main
         force: false
+    - name: Trust personal repository configuration
+      ansible.builtin.command:
+        argv: [mise, trust, /home/norris/git/norriswu0/dotfile/mise.toml]
+      changed_when: false
+      when: not ansible_check_mode
+    - name: Inspect missing personal tool versions from checkout
+      ansible.builtin.command:
+        argv: [mise, -C, /home/norris/git/norriswu0/dotfile, ls, --current, --missing, --json]
+      register: dotfile_missing_tools
+      changed_when: false
+      when: not ansible_check_mode
+    - name: Install pinned personal tools before global registration
+      ansible.builtin.command:
+        argv: [mise, -C, /home/norris/git/norriswu0/dotfile, install, --yes]
+      when:
+        - not ansible_check_mode
+        - dotfile_missing_tools.stdout | from_json | length > 0
     - name: Inspect legacy global mise configuration
       ansible.builtin.stat:
         path: /home/norris/.config/mise/config.toml
@@ -40,32 +57,6 @@
       when:
         - dotfile_legacy_mise_config.stat.islnk | default(false)
         - dotfile_legacy_mise_config.stat.lnk_source | default('') == '/home/norris/git/norriswu0/dotfile/mise.toml'
-    - name: Inspect global mise dotfile directory link
-      ansible.builtin.stat:
-        path: /home/norris/.config/mise/conf.d/dotfile
-        follow: false
-      register: dotfile_mise_config
-    - name: Link global mise dotfile directory with existing-file backup
-      ansible.builtin.shell: |
-        source /home/norris/git/norriswu0/dotfile/lib/setup.sh
-        setup_link /home/norris/git/norriswu0/dotfile "$HOME/.config/mise/conf.d/dotfile" false
-      args:
-        executable: /bin/bash
-      when: dotfile_mise_config.stat.lnk_source | default('') != '/home/norris/git/norriswu0/dotfile'
-    - name: Inspect missing personal tool versions
-      ansible.builtin.command:
-        argv: [mise, ls, --current, --missing, --json]
-        chdir: /home/norris
-      register: dotfile_missing_tools
-      changed_when: false
-      when: not ansible_check_mode
-    - name: Install pinned personal tools
-      ansible.builtin.command:
-        argv: [mise, install, --yes]
-        chdir: /home/norris
-      when:
-        - not ansible_check_mode
-        - dotfile_missing_tools.stdout | from_json | length > 0
     - name: Inspect declared personal profiles
       ansible.builtin.command:
         argv: [mise, -C, /home/norris/git/norriswu0/dotfile, dot, status, --json]
@@ -88,7 +79,7 @@
             | rejectattr('state', 'in', ['applied', 'missing', 'differs']) | list | length == 0
         fail_msg: Personal profile edits have missing sources or unsupported states; resolve them manually before rerunning.
       when: not ansible_check_mode
-    - name: Apply missing personal profiles
+    - name: Apply missing personal profiles and native global registration
       ansible.builtin.command:
         argv: >-
           {{ ['mise', '-C', '/home/norris/git/norriswu0/dotfile', 'dot', 'apply', '--yes']
