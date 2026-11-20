@@ -40,7 +40,6 @@ resource "proxmox_virtual_environment_vm" "devbox" {
   }
   memory {
     dedicated = 8192
-    floating  = 2048
   }
   agent {
     enabled = true
