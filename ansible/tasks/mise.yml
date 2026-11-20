@@ -4,6 +4,7 @@
     url: https://mise.jdx.dev/gpg-key.pub
     dest: /etc/apt/keyrings/mise.asc
     mode: '0644'
+
 - name: Configure mise repository
   ansible.builtin.copy:
     dest: /etc/apt/sources.list.d/mise.sources
@@ -14,11 +15,13 @@
       Components: main
       Signed-By: /etc/apt/keyrings/mise.asc
     mode: '0644'
+
 - name: Install mise
   ansible.builtin.apt:
     name: mise
     update_cache: true
     state: present
+
 - name: Enable mise for interactive Bash sessions
   ansible.builtin.blockinfile:
     path: /etc/bash.bashrc

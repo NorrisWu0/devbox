@@ -5,6 +5,7 @@
     content: |
       ssh_deletekeys: false
     mode: '0644'
+
 - name: Configure key-only non-root SSH
   ansible.builtin.copy:
     dest: /etc/ssh/sshd_config.d/00-devbox.conf
@@ -14,6 +15,7 @@
       PermitRootLogin no
     mode: '0644'
   notify: Reload SSH
+
 - name: Enable SSH
   ansible.builtin.service:
     name: ssh

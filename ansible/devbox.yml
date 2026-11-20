@@ -2,27 +2,35 @@
 - name: Configure Debian devboxes
   hosts: devboxes
   become: true
+
   pre_tasks:
     - name: Require Debian
       ansible.builtin.assert:
         that: ansible_facts.distribution == 'Debian'
         fail_msg: This playbook supports Debian only.
+
   tasks:
     - name: Configure system
       ansible.builtin.import_tasks: tasks/system.yml
+
     - name: Configure SSH
       ansible.builtin.import_tasks: tasks/ssh.yml
+
     - name: Configure mise
       ansible.builtin.import_tasks: tasks/mise.yml
+
     - name: Configure Tailscale
       ansible.builtin.import_tasks: tasks/tailscale.yml
+
     - name: Configure personal tools
       ansible.builtin.import_tasks: tasks/dotfile.yml
+
   handlers:
     - name: Validate SSH configuration
       ansible.builtin.command: /usr/sbin/sshd -t
       changed_when: false
       listen: Reload SSH
+
     - name: Reload SSH service
       ansible.builtin.service:
         name: ssh

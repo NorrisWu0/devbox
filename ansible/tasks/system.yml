@@ -2,17 +2,20 @@
 - name: Set the devbox hostname
   ansible.builtin.hostname:
     name: "{{ inventory_hostname }}"
+
 - name: Resolve the local hostname
   ansible.builtin.lineinfile:
     path: /etc/hosts
     regexp: '^127\.0\.1\.1\s'
     line: "127.0.1.1 {{ inventory_hostname }}"
+
 - name: Install base tools
   ansible.builtin.apt:
-    name: [ca-certificates, git, openssh-server]
+    name: [build-essential, ca-certificates, curl, git, libatomic1, openssh-server, tmux]
     state: present
     update_cache: true
     cache_valid_time: 3600
+
 - name: Set UTF-8 locale
   ansible.builtin.lineinfile:
     path: /etc/default/locale
@@ -20,6 +23,7 @@
     line: LANG=C.UTF-8
     create: true
     mode: '0644'
+
 - name: Prepare repository key directory
   ansible.builtin.file:
     path: /etc/apt/keyrings

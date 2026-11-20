@@ -1,4 +1,4 @@
-.PHONY: build build-arch run ssh vm-plan vm-apply
+.PHONY: build build-arch run ssh vm-plan vm-apply configure
 
 SSH_DIR := $(CURDIR)/.local/ssh
 CONTAINER_NAME ?= devbox-local
@@ -44,3 +44,6 @@ vm-plan:
 
 vm-apply:
 	@$(INFISICAL_RUN) sh scripts/proxmox-tofu.sh apply devbox.tfplan
+
+configure:
+	mise exec -- ansible-playbook -i .local/ansible-inventory.json ansible/devbox.yml

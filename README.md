@@ -42,23 +42,32 @@ One playbook imports `system`, `ssh`, `mise`, `tailscale`, and `dotfile` task fi
 ```sh
 read -rsp 'Tailscale auth key: ' TAILSCALE_AUTH_KEY; printf '\n'
 export TAILSCALE_AUTH_KEY
-ansible-playbook -i .local/ansible-inventory.json ansible/devbox.yml
+make configure
 unset TAILSCALE_AUTH_KEY
 ```
 
 Already authenticated VMs do not need another enrollment key. Secret tasks are redacted and temporary credentials removed on failure. Re-run this playbook for ongoing configuration; cloud-init is bootstrap, so editing its user/key settings does not reconfigure an existing instance automatically. Re-export the inventory after address changes.
 
+For later VM configuration updates, run `make configure` again. It uses the
+generated LAN inventory, your selected SSH agent, and normal host-key
+verification. No Proxmox credentials or new Tailscale key are needed for an
+already-enrolled VM.
+
 ### Personal tools
 
 Publish the dotfile changes to `NorrisWu0/dotfile`'s `main` branch before applying the playbook; the VM cannot fetch a local-only commit.
 
-Ansible installs `curl`, `libatomic1`, `tmux`, and mise through apt, then clones the public repository over HTTPS to `/home/norris/git/norriswu0/dotfile` as `norris` with `HOME=/home/norris`. Mise must support native dotfiles and configuration self-deployment. Ansible trusts the checkout's single root `mise.toml` and inspects/installs missing pinned tools with explicit `mise -C /home/norris/git/norriswu0/dotfile` commands **before** registering it globally. Tools include `gh`; cloning the public repository needs no GitHub credentials.
+OS packages are owned by `ansible/tasks/system.yml`; `tasks/mise.yml` installs
+mise itself. `tasks/dotfile.yml` handles only the checkout, personal mise tools,
+and configuration deployment.
 
-Ansible then inspects files and edits with `mise -C /home/norris/git/norriswu0/dotfile dot status --json`, selecting only declarations originating in that checkout's root `mise.toml`. Missing declarations include the native self-registration link `~/.config/mise/conf.d/dotfile` → the checkout, plus agent instructions/skills, Herdr, Neovim, tmux, the shared shell directory, and the SSH host configuration. Mise deploys its own configuration first and reloads it; the directory fragment preserves relative source paths without replacing `~/.config/mise` or adding a second mise configuration. Ansible removes the legacy `~/.config/mise/config.toml` link only when it points to this checkout's `mise.toml`; unrelated user configuration remains intact. Conflicting destinations (including the registration link) or missing sources fail without backups, forced overwrites, or deletion; resolve them manually before rerunning. Pending shell and SSH Include edits are applied by exact path and edit id, not by bare file path, leaving unrelated declarations alone. Mise refuses damaged block markers and symlinked edit targets. Ansible then runs `mise -C /home/norris/git/norriswu0/dotfile run herdr-plugins` as `norris` to install missing Herdr plugins, without starting or controlling sessions.
+Ansible installs OS dependencies through apt, clones the public repository to `/home/norris/git/norriswu0/dotfile` as `norris`, and trusts its root `mise.toml`. It then runs `mise install --yes`, `mise dot apply --yes`, and `mise run herdr-plugins` from that checkout. Cloning the public repository needs no GitHub credentials.
+
+Mise commands use the checkout as their global configuration and stop parent-directory discovery above the repository. This excludes unrelated personal mise declarations without changing the user's configuration files. Native mise deploys the global registration link, personal configuration links, and additive shell/SSH edits. No `--force` is used: regular-file and directory conflicts fail, while native mise can retarget existing symlinks. Review `mise dot diff` before changing existing configuration.
 
 The shell declarations add managed startup hooks without replacing `~/.bashrc` or `~/.zshrc`; existing user configuration remains in place. The shared shell configuration initializes mise and zoxide when available without repeating existing initialization, and loads `shell/alias.conf`. Aliases include `k` (`kubectl`), `tf` (`tofu`), `nh` (`nvim .`), `hpc` (the current Herdr pane id), and `devbox` (`ssh norris@devbox.hoki-sole.ts.net`); `tools-check` shows `mise ls --current`. Open a new interactive shell after applying. The `devbox` shortcut is available on hosts where these shell profiles are applied; it still requires SSH credentials and Tailscale reachability.
 
-The root configuration deploys the common shell and SSH profiles on every machine, including the VM; no optional group, environment profile, or second mise configuration is needed. Other desktop modules are not applied. Reruns update the checkout without discarding local modifications, skip already-installed tools and applied profiles/edits, and report plugin changes only when plugins are installed. Check mode skips trust, tool inspection/installation, profile inspection/application, and plugin synchronization. The published `main` branch must include the native self-registration declarations, shell/SSH source files and edits, and `herdr-plugins` task; unpublished changes and local-only commits are not available to the VM.
+The root configuration deploys the common shell and SSH profiles on every machine, including the VM; desktop modules are excluded. Mise skips already-installed tools, matching links, and existing startup lines on reruns. Ansible still reports its command tasks as changed; they do not trigger restart handlers. Check mode skips the mise commands. Git updates never discard local modifications. Publish dotfile changes to `main` before applying; local-only commits are not available to the VM.
 
 Only version-controlled configuration is linked: live sessions, runtime data, private keys, and credentials are not copied or provisioned. Deploying the SSH profile does not install Bitwarden Desktop or create an agent socket. Bitwarden Desktop's SSH agent must be available only on machines making outgoing SSH connections with the configured Bitwarden key; it is not needed merely to deploy the profile or accept incoming SSH connections on the VM. Client authentication remains separate from the VM's SSH server and authorized public key. For authenticated GitHub work, run `mise exec -- gh auth login` inside the devbox; Ansible does not copy or provision GitHub tokens. Configure any agent/provider credentials separately on the VM.
 
