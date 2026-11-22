@@ -47,13 +47,23 @@ sudo journalctl -b -1 | grep -E "Power key|Powering off"
 free -h
 ```
 
-## What should we change?
+## What did we change?
 
-These are recommendations. None are applied yet.
+Commit `28e510d` adds two guardrails. It is committed but **not live on the VM until it is applied**.
 
-1. Add swap or zram so the VM slows down instead of freezing.
-2. Run `earlyoom` or `systemd-oomd` so the largest process is killed early.
-3. Raise `memory.dedicated` in `tofu/main.tf`, or close idle `nvim`, `opencode`, and `node` sessions.
+1. **Swap:** `tofu/main.tf` adds a 4 GiB disk (`virtio2`, serial `devbox-swap`, excluded from backup). `ansible/tasks/system.yml` formats it only if it has no signature, adds an fstab entry with `nofail`, and turns swap on.
+2. **earlyoom:** `ansible/tasks/system.yml` installs and enables it. It kills the largest process when free memory and swap both drop below 10%, so the VM doesn't hang.
+
+Memory stays at 8192 MiB. To apply, run `make vm-plan`, `make vm-apply`, then `make configure` from a machine with Proxmox access. The plan should show an in-place disk add and no replacement.
+
+## How do I confirm the fix is live?
+
+```sh
+swapon --show
+systemctl is-active earlyoom
+```
+
+`swapon` should list `/dev/vdc` at 4G, and `earlyoom` should print `active`.
 
 ## Is there any external references to this documentation?
 
