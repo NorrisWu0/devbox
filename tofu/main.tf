@@ -62,6 +62,14 @@ resource "proxmox_virtual_environment_vm" "devbox" {
     backup       = true
     discard      = "on"
   }
+  disk {
+    interface    = "virtio2"
+    serial       = "devbox-swap"
+    datastore_id = "local-lvm"
+    size         = 4
+    backup       = false
+    discard      = "on"
+  }
   initialization {
     datastore_id      = "local-lvm"
     user_data_file_id = proxmox_virtual_environment_file.cloud_init.id

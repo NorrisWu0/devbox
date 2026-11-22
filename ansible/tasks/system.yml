@@ -29,3 +29,38 @@
     path: /etc/apt/keyrings
     state: directory
     mode: '0755'
+
+- name: Inspect the swap disk
+  ansible.builtin.command: wipefs --no-act --noheadings --output TYPE /dev/disk/by-id/virtio-devbox-swap
+  register: swap_signature
+  changed_when: false
+
+- name: Refuse to touch a swap disk that holds data
+  ansible.builtin.assert:
+    that: swap_signature.stdout in ['', 'swap']
+    fail_msg: "Unexpected signature on devbox-swap: {{ swap_signature.stdout }}"
+
+- name: Format the swap disk
+  ansible.builtin.command: mkswap --label devbox-swap /dev/disk/by-id/virtio-devbox-swap
+  when: swap_signature.stdout == ''
+
+- name: Mount swap at boot
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^/dev/disk/by-id/virtio-devbox-swap\s'
+    line: /dev/disk/by-id/virtio-devbox-swap none swap sw,nofail 0 0
+
+- name: Enable swap now
+  ansible.builtin.command: swapon --all
+  when: ansible_facts.swaptotal_mb == 0
+
+- name: Install earlyoom
+  ansible.builtin.apt:
+    name: earlyoom
+    state: present
+
+- name: Run earlyoom
+  ansible.builtin.service:
+    name: earlyoom
+    state: started
+    enabled: true
