@@ -11,7 +11,7 @@
 
 - name: Install base tools
   ansible.builtin.apt:
-    name: [build-essential, ca-certificates, curl, git, libatomic1, openssh-server, tmux]
+    name: [build-essential, ca-certificates, curl, git, libatomic1, openssh-server, tmux, unzip]
     state: present
     update_cache: true
     cache_valid_time: 3600
