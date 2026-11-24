@@ -2,7 +2,7 @@
 
 ## Proxmox VM
 
-`tofu/` provisions one Debian VM; `ansible/devbox.yml` configures it. No Docker is installed in the VM, and the existing Kubernetes devbox is untouched.
+`tofu/` provisions one Debian VM; `ansible/devbox.yml` configures it. Docker (engine, Compose and Buildx from apt) runs in the VM, and `norris` is in the `docker` group, which gives root-equivalent access. The existing Kubernetes devbox is untouched.
 
 The first VM uses static settings in `tofu/main.tf`: `proxmox-02`, `vmbr0` with DHCP, 4 shared vCPUs, 2–8 GiB ballooned RAM, a 16 GiB system disk, and a 32 GiB home disk on `local-lvm`. `tofu/cloud-init.yaml` contains user `norris` and the public SSH key. The Debian image is pinned by release and SHA-512; provider versions are locked.
 
